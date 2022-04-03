@@ -448,6 +448,28 @@ module F_reg(Cout_In, pos_In, Eq_In, Resetn, E, Clock, C,N,Z);//syncronize flag 
 				C<=Cout_In;
 			end
 endmodule
+
+module SP_reg (R, sp_incr,sp_decr,Resetn,E,Clock, out);
+        input [15:0] R;
+        input sp_incr;
+        input sp_decr;
+        input Resetn;
+        input E;
+        input Clock;
+        always@(posedge Clock)
+            if(!Resentn)
+                out<=0;//reset register
+            else if(E)
+                out<=R;//load initial SP value
+            else if(sp_incr)
+                out<=out+1;
+            else if(sp_decr)
+                out<=out-1;
+                
+
+
+endmodule
+		
 		
 		
 		
