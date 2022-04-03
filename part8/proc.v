@@ -13,23 +13,20 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
     output wire W;//write enable signal for memory
 
     wire [0:7] R_in; // r0, ..., r7 register enables
-    reg rX_in, IR_in, ADDR_in, Done, DOUT_in, A_in, G_in, AddSub, ALU_and,ALU_SR, F_in,;//alu_SR signal for shift and rotate 
+    reg rX_in, IR_in, ADDR_in, Done, DOUT_in, A_in, G_in, AddSub, ALU_and,ALU_SR,Shift_Select, F_in;//alu_SR signal for shift and rotate 
+                                                                                            //
 	 /*shift/rotate if ALU_SR=1
 	   AddSub or and if ALU_SR=0*/
     reg [2:0] Tstep_Q, Tstep_D;
     reg [15:0] BusWires;
     reg [3:0] Select; // BusWires selector
-    reg [16:0] Sum;
-	 reg [15:0] data_out;
+    reg [15:0] ALU_out;//alu_output without carry out
+    reg ALU_cout; //alu carry out signal
     wire [2:0] III, rX, rY; // instruction opcode and register operands
     wire [15:0] r0, r1, r2, r3, r4, r5, r6, pc, A;
     wire [15:0] G;
     wire [15:0] IR;
-	 wire c,n,z;//flags
-	 // G-->flag_reg
-	 // |
-	 // |
-	 //mux
+	wire c,n,z;//flags
     reg pc_incr;    // used to increment the pc
     reg pc_in;      // used to load the pc
     reg W_D;        // used for write signal
@@ -91,7 +88,7 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
 	 *  1110XXX10SS00YYY: shift/rotate with register
 	 *  1110XXX11SS0DDDD: shift/rotate with immediate data
 	 */
-	 w
+	 
 	 //instruction encoding
     parameter mv = 3'b000, mvt = 3'b001, add = 3'b010, sub = 3'b011, ld = 3'b100, st = 3'b101,
 	     and_ = 3'b110;
@@ -334,29 +331,30 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
 
     flipflop reg_W (W_D, Resetn, Clock, W);//output write enable signal and maintain it until W_D got changed by the FSM
     
-    // alu
+    // alu - support logic shift and algebric manipulation of the data
     always @(*)
-		  if(!ALU_SR) begin
-				if (shift_type == lsl)
-					data_out = data_in << shift;
-				else if (shift_type == lsr) 
-					data_out = data_in >> shift;
-				else if (shift_type == asr) 
-					data_out = {{16{data_in[15]}},data_in} >> shift;    // sign extend
-				else // ror
-					data_out = (data_in >> shift) | (data_in << (16 - shift));
-		  end
-		  
-        if (!ALU_and)
-            if (!AddSub)
-              Sum= A + BusWires;
+        if(ALU_SR)  begin//Shift and rotate if ALU_SR high
+            if (Shift_Select == lsl)
+                ALU_out = A << shift;
+            else if (Shift_Select == lsr) 
+                ALU_out = A >> shift;
+            else if (Shift_Select == asr) 
+                ALU_out = {{16{A[15]}},A} >> shift;    // sign extend
+            else // ror
+                ALU_out = (A >> shift) | (A << (16 - shift));
+        end
+        else if(!ALU_SR) begin
+            if(!ALU_and)
+                if (!AddSub)
+                {ALU_cout,ALU_out}= A + BusWires;
+                else
+                {ALU_cout,ALU_out}= A + ~BusWires + 16'b1;
             else
-               Sum = A + ~BusWires + 16'b1;
-		  else
-            Sum = A & BusWires;
-    regn  reg_G (Sum[15:0], Resetn, G_in, Clock, G);
+                {ALU_cout,ALU_out}= A & BusWires;
+        end
+    regn  reg_G (ALU_out, Resetn, G_in, Clock, G);
 	 //F_reg(Cout_In, pos_In, Eq_In, Resetn, F_in, Clock, C,N,Z)
-	 F_reg regf (Sum[16], Sum[15], Sum[15:0], Resetn, F_in,Clock,c,n,z);//flag register
+	F_reg regf (ALU_cout, ALU_out[15], ALU_out, Resetn, F_in,Clock,c,n,z);//flag register
 
     // define the internal processor bus
     // mux for data to be put on Buswires
@@ -444,7 +442,7 @@ module F_reg(Cout_In, pos_In, Eq_In, Resetn, E, Clock, C,N,Z);//syncronize flag 
 				N<=0;
 				Z<=0;
 			end
-			else if (E) beginS  
+			else if (E) begin  
 				Z<=~(Eq_In[15]|Eq_In[14]|Eq_In[13]|Eq_In[12]|Eq_In[11]|Eq_In[10]|Eq_In[9]|Eq_In[8]|Eq_In[7]|Eq_In[6]|Eq_In[5]|Eq_In[4]|Eq_In[3]|Eq_In[2]|Eq_In[1]|Eq_In[0]);
 				N<=pos_In;
 				C<=Cout_In;

@@ -1,4 +1,5 @@
-// This module specifies a barrel shifter that can perform lsl, lsr, asr, and ror
+/
+/ This module specifies a barrel shifter that can perform lsl, lsr, asr, and ror
 module barrel (shift_type, shift, data_in, data_out);
     input wire [1:0] shift_type;
     input wire [3:0] shift;
