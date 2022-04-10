@@ -13,29 +13,50 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
     output wire W;//write enable signal for memory
 
     wire [0:7] R_in; // r0, ..., r7 register enables
-    reg rX_in, IR_in, ADDR_in, Done, DOUT_in, A_in, G_in, AddSub, ALU_and,ALU_SR,Shift_Select, F_in;//alu_SR signal for shift and rotate 
-                                                                                            //
-	 /*shift/rotate if ALU_SR=1
-	   AddSub or and if ALU_SR=0*/
+    //FSM control signals for datapath
+    reg rX_in, IR_in, ADDR_in, Done, DOUT_in, A_in, G_in, AddSub, ALU_and,ALU_SR, F_in,sp_incr,sp_decr,pc_incr,pc_in,W_D,r6_in;
+    //alu_SR signal for shift and rotate 
+    //shift select signal for rotate and shift types 
+
+    /*
+     *
+     *
+     *
+     */
+
+	 /* shift/rotate if ALU_SR=1
+	  * AddSub or and if ALU_SR=0
+      */
     reg [2:0] Tstep_Q, Tstep_D;
     reg [15:0] BusWires;
     reg [3:0] Select; // BusWires selector
     reg [15:0] ALU_out;//alu_output without carry out
     reg ALU_cout; //alu carry out signal
     wire [2:0] III, rX, rY; // instruction opcode and register operands
+    
+    wire CMP_SR;
+    wire [1:0] Shift_Select;//shift/rotate type 
     wire [15:0] r0, r1, r2, r3, r4, r5, r6, pc, A;
     wire [15:0] G;
     wire [15:0] IR;
-	wire c,n,z;//flags
-    reg pc_incr;    // used to increment the pc
-    reg pc_in;      // used to load the pc
-    reg W_D;        // used for write signal
+	 wire c,n,z;//flags
+ 
     wire Imm;
+    wire SR_Operand;
+	 wire [3:0]shift_amount;
    
     assign III = IR[15:13];
     assign Imm = IR[12];
     assign rX = IR[11:9];
     assign rY = IR[2:0];
+	 assign shift_amount=BusWires[3:0];
+    
+    assign CMP_SR=IR[8];//0 for cmp rX,rY;1 for SR
+    assign Shift_Select=IR[6:5];//check for shift and rotate type
+    assign SR_Operand=IR[7];//check if operand of SR instruction is data or register
+
+
+
 	 //assign Cout=Sum[16];
 	 //assign Sum_Out=Sum[15:0];
 	 
@@ -80,24 +101,30 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
     *  101 0: st   rX,[rY]  [rY] <- rX
     *  110 0: and  rX,rY    rX <- rX & rY
     *  110 1: and  rX,#D    rX <- rX & D 
-	 *	 101 1: push rx,[r5]	 r[5]<-rX
-	 *  100 1: pop  rx,[r5]  rX <- r[5]
-	 *  1111 111 DDDDDDDDD: bl pc<-pc+offset -->check if rX is pc
-	 *  111 0: cmp  rX,rY    rX-rY -->only changes flag  
-	 *  111 1: cmp  rX,#D	 rX-#D -->only changes flag
-	 *  1110XXX10SS00YYY: shift/rotate with register
-	 *  1110XXX11SS0DDDD: shift/rotate with immediate data
-	 */
+
+    *  added in lab9
+	*  101 1: push rx,[r5]	 r[5]<-rX  YYY being r5
+	*  100 1: pop  rx,[r5]  rX <- r[5]  YYY being r5
+	*  001 0  b    cond, #offset   PC<-PC+offset, condition identified by cond at xxx 
+    *  001 0  bl   111,  #offset   PC<-PC+offset, lR(r6)<-PC+1, condition be 111
+	*  111 0: cmp  rX,rY    rX-rY -->only changes flag  opcode: 1110XXX000000YYY
+	*  111 1: cmp  rX,#D	 rX-#D -->only changes flag  opcode: 1111XXXDDDDDDDDD
+	*  1110XXX10SS00YYY: shift/rotate with register      opcode: 1110XXX10SS00YYY
+    * 1110XXX11SS0DDDD: shift/rotate with immediate data opcode: 1110XXX11SS0DDDD
+    *  to differentiate cmp from shift/rotate
+        i. check bit 12 - 1 for cmp rx,#D
+        ii. check bit 8 - 0 for cmp, 1 for shift/rotate
+    */
 	 
 	 //instruction encoding
     parameter mv = 3'b000, mvt = 3'b001, add = 3'b010, sub = 3'b011, ld = 3'b100, st = 3'b101,
-	     and_ = 3'b110;
+	     and_ = 3'b110, CMP_SR_=3'b111;
 		  
 	//shift/rotate selectors
-	parameter lsl = 00, lsr = 01, ast = 10, ror = 11;
+	parameter lsl = 2'b00, lsr = 2'b01, asr = 2'b10, ror = 2'b11;
 	
     // selectors for the BusWires multiplexer
-	 parameter none=3'b000, eq=3'b001,ne=3'b010,cc=3'b011,cs=3'b100,pl=3'b101,mi=3'b110;
+	 parameter none=3'b000, eq=3'b001,ne=3'b010,cc=3'b011,cs=3'b100,pl=3'b101,mi=3'b110, link=3'b111;
     parameter R0_SELECT = 4'b0000, R1_SELECT = 4'b0001, R2_SELECT = 4'b0010, 
         R3_SELECT = 4'b0011, R4_SELECT = 4'b0100, R5_SELECT = 4'b0101, R6_SELECT = 4'b0110, 
         PC_SELECT = 4'b0111, G_SELECT = 4'b1000, 
@@ -109,7 +136,8 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
         // default values for control signals
         rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
         Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
-        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;
+        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;sp_incr=1'b0;sp_decr=1'b0;
+        ALU_SR=1'b0;r6_in=R_in[6];
 
         case (Tstep_Q)
             T0: begin // fetch the instruction
@@ -134,6 +162,9 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
 								if(~Imm) begin
 									Select=PC_SELECT;
 									A_in=1'b1;
+                                    if(rX==3'b111)
+                                        r6_in=1'b1;//enable r6 to store return address
+
 										
 								end
 								else begin
@@ -149,16 +180,58 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
                         
                         A_in=1'b1; //store rX or immediate data in A
                     end
-                    ld, st: begin
+                    st: begin//st or push instruction 
+                             //push if YYY is r5
                         // ... your code goes here
-                        Select=rY;
-                        ADDR_in=1'b1;// store address in rY into address register
+                        if(rY==3'b101)//encoded push
+                            sp_decr=1'b1;
+                        else begin
+                            Select=rY;
+                            ADDR_in=1'b1;
+                        end
+                    end
+                    ld: begin// ld or pop instruction
+                        // ... your code goes here
+                        if(rY==3'b101) begin//encoded pop
+                            Select=rY;
+                            ADDR_in=1'b1;
+                            sp_incr=1'b1;
+                        end
+                        else begin
+                            Select=rY;
+                            ADDR_in=1'b1;// store address in rY into address register
+                        end
+                    end
+                    CMP_SR_: begin//cmp and shift instruction
+                            Select=rX;
+                            A_in=1'b1;
 
+
+
+                    /*
+                        if(Imm) begin//cmp rX, #D
+                            Select=rX;
+                            A_in=1'b1;
+                        end
+                        else if(~Imm) begin
+                            if(~CMP_SR) begin//cmp rX,rY
+                                Select=rX;
+                                A_in=1'b1;
+                            end
+                            else if(CMP_SR) begin//shift/rotate
+                                    Select=rX;
+                                    A_in=1'b1;
+
+                            end
+                        end
+
+                     */   
                     end
                     default: begin 
-								rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
-        Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
-        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;
+								  rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
+								  Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
+								  pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;sp_incr=1'b0;sp_decr=1'b0;
+								  ALU_SR=1'b0;r6_in=R_in[6];
 						  end
                 endcase
             T4: // define signals T2
@@ -178,7 +251,8 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
                         //add mode
                         G_in=1'b1;//store result in G
                     end
-						  mvt: begin
+						  mvt: begin//b or bl instruction
+                            
 								Select=SGN_IR8_0_SELECT;
 								G_in=1'b1;
 								AddSub=1'b0;
@@ -214,18 +288,63 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
                         G_in=1'b1;//store result in G
                     end
                     ld: // wait cycle for synchronous memory
+                        //the same for ld and pop
                         ;
                     st: begin
                         // ... your code goes here
-                        Select=rX;//put data to be written on the bus
-                        DOUT_in=1'b1; //store data in the output register
-                        W_D=1'b1;//write enable signal
+                        if(rY==3'b101) begin//push
+                            Select=rY;
+                            ADDR_in=1'b1;
+                        end
+                        else begin
+                            Select=rX;//put data to be written on the bus
+                            DOUT_in=1'b1; //store data in the output register
+                            W_D=1'b1;//write enable signal
+                        end
                     end
+                    CMP_SR_:begin
+                        if(Imm) begin//cmp rX, #D
+                            Select=SGN_IR8_0_SELECT;
+                            AddSub=1'b1;
+                            F_in=1'b1;
+                            Done=1'b1;
+
+
+                        end
+                        else if(~Imm) begin
+                            if(~CMP_SR) begin//cmp rX,rY
+                                Select=rY;
+                                AddSub=1'b1;
+                                F_in=1'b1;
+                                Done=1'b1; 
+                            end
+                            else if(CMP_SR) begin//shift/rotate
+                                    if(~SR_Operand) begin//second operand is register
+                                        Select=rY;
+                                        ALU_SR=1'b1;
+                                        G_in=1'b1;
+                                        F_in=1'b1;
+                                    end
+                                    else if(SR_Operand) begin// seoncd operand is immedaite data
+                                        Select=SGN_IR8_0_SELECT;
+                                        ALU_SR=1'b1;
+                                        G_in=1'b1;
+                                        F_in=1'b1;
+
+                                    end
+
+
+                            end
+                        end
+                    end
+
+
                     default: begin 
-								rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
-        Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
-        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;
-						  end
+                             rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
+									  Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
+									  pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;sp_incr=1'b0;sp_decr=1'b0;
+									  ALU_SR=1'b0;r6_in=R_in[6];
+				    end
                 endcase
             T5: // define T3
                 case (III)
@@ -238,16 +357,38 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
                         Done=1'b1;
 
                     end
-                    ld: begin
+                    ld: begin//ld and pop instruction
                         // ... your code goes herex
-                        Select=DIN_SELECT;//select the data taken from the memory
-                        rX_in=1'b1;//enable the destination register to take in the data
-                        Done=1'b1; //instruction done
+                        if(rY==3'b101) begin//pop
+                            Select=DIN_SELECT;
+                            rX_in=1'b1;
+                            Done=1'b1;
+
+                        end
+                        else begin
+
+
+                            Select=DIN_SELECT;//select the data taken from the memory
+                            rX_in=1'b1;//enable the destination register to take in the data
+                            Done=1'b1; //instruction done
+                        end
                     end
-                    st: // wait cycle for synhronous memory
+                    st: begin// wait cycle for synhronous memory
+                        //st and push instruction
                         // ... your code goes here
-                        Done=1'b1;
-						  mvt:begin
+                        if(rY==3'b101) begin//push 
+                            Select=rX;
+                            DOUT_in=1'b1;
+                            W_D=1'b1;
+                            Done=1'b1;
+                            
+                        end
+                        else  begin
+
+                            Done=1'b1;
+                        end
+                    end
+					mvt:begin
 								Select=G_SELECT;
 								case(rX)
 									none:pc_in=1'b1;
@@ -282,24 +423,44 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
 											pc_in=1'b1;
 											Done=1'b1;
 									end
+                                    link:begin//bl
+                                        Select=G_SELECT;
+                                        pc_in=1'b1;
+                                        Done=1'b1;
+
+                                    end
+
+
+
 									default:begin
-										pc_in=1'b0;Done=1'b0;
+										pc_in=1'b0;Done=1'b0;Select=4'bxxxx;
+
 									end
 									
 								endcase
-						  end
+
+
+					end
+                    CMP_SR_:begin//SR instruction
+                            Select=G_SELECT;
+                            rX_in=1'b1;
+                            Done=1'b1;
+                            
+                    end
                         
                     default: begin 
-									rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
-        Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
-        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;
-						  end
+								rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
+							   Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
+							   pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;sp_incr=1'b0;sp_decr=1'b0;
+							   ALU_SR=1'b0;r6_in=R_in[6];
+				    end
                 endcase
             default: begin 
 								rX_in = 1'b0; A_in = 1'b0; G_in = 1'b0; IR_in = 1'b0; DOUT_in = 1'b0; ADDR_in = 1'b0; 
-        Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
-        pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;
-						  end
+								Select = 4'bxxxx; AddSub = 1'b0; ALU_and = 1'b0; W_D = 1'b0; Done = 1'b0;
+							   pc_in = R_in[7] /* default pc enable */; pc_incr = 1'b0;F_in=1'b0;sp_incr=1'b0;sp_decr=1'b0;
+							   ALU_SR=1'b0;r6_in=R_in[6];
+			end
         endcase
     end   
    
@@ -310,13 +471,20 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
         else
             Tstep_Q <= Tstep_D;   
    
-    regn reg_0 (BusWires, Resetn, R_in[0], Clock, r0);
+    regn reg_0 (BusWires, Resetn, R_in[0], Clock, r0);	
     regn reg_1 (BusWires, Resetn, R_in[1], Clock, r1);
     regn reg_2 (BusWires, Resetn, R_in[2], Clock, r2);
     regn reg_3 (BusWires, Resetn, R_in[3], Clock, r3);
     regn reg_4 (BusWires, Resetn, R_in[4], Clock, r4);
-    regn reg_5 (BusWires, Resetn, R_in[5], Clock, r5);
-    regn reg_6 (BusWires, Resetn, R_in[6], Clock, r6);
+    //module SP_reg (R, sp_incr,sp_decr,Resetn,E,Clock, out);
+    SP_reg reg_5(BusWires,sp_incr,sp_decr,Resetn,R_in[5],Clock,r5);
+    /*if R_in[5], SP=Buswire
+     *if sp_incr, SP=SP+1;
+     *if sp_decr, sp=sp-1
+     */
+
+    //regn reg_5 (BusWires, Resetn, R_in[5], Clock, r5);
+    regn reg_6 (BusWires, Resetn, r6_in, Clock, r6);
 	 
 
     // r7 is program counter
@@ -332,25 +500,48 @@ module proc(DIN, Resetn, Clock, Run, DOUT, ADDR, W);
     flipflop reg_W (W_D, Resetn, Clock, W);//output write enable signal and maintain it until W_D got changed by the FSM
     
     // alu - support logic shift and algebric manipulation of the data
+
+    /*ALU_out ==16 bit output from ALU
+     *ALU_cout ==carry out bit from ALU, only for algebric manipulation
+     */
+
     always @(*)
         if(ALU_SR)  begin//Shift and rotate if ALU_SR high
+		  ALU_cout=1'b0;
             if (Shift_Select == lsl)
-                ALU_out = A << shift;
+					if(SR_Operand)
+						ALU_out = A << shift_amount;
+					else
+						ALU_out = A <<BusWires;
+					
             else if (Shift_Select == lsr) 
-                ALU_out = A >> shift;
+					if(SR_Operand)
+						ALU_out = A >> shift_amount;
+					else
+						ALU_out = A >> BusWires;
+                
             else if (Shift_Select == asr) 
-                ALU_out = {{16{A[15]}},A} >> shift;    // sign extend
+					if(SR_Operand)
+						ALU_out = {{16{A[15]}},A} >> shift_amount;
+					else
+						ALU_out = {{16{A[15]}},A} >> BusWires;
+                   // sign extend
             else // ror
-                ALU_out = (A >> shift) | (A << (16 - shift));
+					if(SR_Operand)
+						ALU_out = (A >> shift_amount) | (A << (16 - shift_amount));
+					else
+						ALU_out = (A >> BusWires) | (A << (16 - BusWires));
+						
+                
         end
-        else if(!ALU_SR) begin
+        else begin
             if(!ALU_and)
                 if (!AddSub)
-                {ALU_cout,ALU_out}= A + BusWires;
+						{ALU_cout,ALU_out}= A + BusWires;
                 else
-                {ALU_cout,ALU_out}= A + ~BusWires + 16'b1;
+						{ALU_cout,ALU_out}= A + ~BusWires + 16'b1;
             else
-                {ALU_cout,ALU_out}= A & BusWires;
+						{ALU_cout,ALU_out}= A & BusWires;
         end
     regn  reg_G (ALU_out, Resetn, G_in, Clock, G);
 	 //F_reg(Cout_In, pos_In, Eq_In, Resetn, F_in, Clock, C,N,Z)
@@ -413,6 +604,7 @@ module dec3to8(E, W, Y);
             endcase
 endmodule
 
+
 module regn(R, Resetn, E, Clock, Q);
     parameter n = 16;
     input [n-1:0] R;
@@ -427,6 +619,7 @@ module regn(R, Resetn, E, Clock, Q);
             Q <= R;
 endmodule
 
+//flag register for z,n,c flags
 module F_reg(Cout_In, pos_In, Eq_In, Resetn, E, Clock, C,N,Z);//syncronize flag regiester 
 		input Cout_In;
 		input pos_In;
@@ -449,6 +642,10 @@ module F_reg(Cout_In, pos_In, Eq_In, Resetn, E, Clock, C,N,Z);//syncronize flag 
 			end
 endmodule
 
+//stack pointer register
+//sp_incr for pop, sp decr for push,
+//load intitial stack position if Enabled with E
+//out being the address to be putted into the Address register to specify the memory addresses
 module SP_reg (R, sp_incr,sp_decr,Resetn,E,Clock, out);
         input [15:0] R;
         input sp_incr;
@@ -456,15 +653,16 @@ module SP_reg (R, sp_incr,sp_decr,Resetn,E,Clock, out);
         input Resetn;
         input E;
         input Clock;
+		  output reg [15:0] out;
         always@(posedge Clock)
-            if(!Resentn)
+            if(!Resetn)
                 out<=0;//reset register
             else if(E)
                 out<=R;//load initial SP value
             else if(sp_incr)
-                out<=out+1;
+                out<=out+1'b1;
             else if(sp_decr)
-                out<=out-1;
+                out<=out-1'b1;
                 
 
 

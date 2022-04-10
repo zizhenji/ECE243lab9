@@ -18,14 +18,31 @@ add wave -noupdate -label inst_mem -radix hexadecimal /testbench/U1/inst_mem_q
 add wave -noupdate -label DIN -radix hexadecimal /testbench/U1/U3/DIN
 add wave -noupdate -label DOUT -radix hexadecimal -childformat {{{/testbench/U1/U3/DOUT[15]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[14]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[13]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[12]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[11]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[10]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[9]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[8]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[7]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[6]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[5]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[4]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[3]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[2]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[1]} -radix hexadecimal} {{/testbench/U1/U3/DOUT[0]} -radix hexadecimal}} -subitemconfig {{/testbench/U1/U3/DOUT[15]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[14]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[13]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[12]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[11]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[10]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[9]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[8]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[7]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[6]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[5]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[4]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[3]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[2]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[1]} {-height 15 -radix hexadecimal} {/testbench/U1/U3/DOUT[0]} {-height 15 -radix hexadecimal}} /testbench/U1/U3/DOUT
 add wave -noupdate -label FSM /testbench/U1/U3/Tstep_Q
+add wave -noupdate -label seg7_cs -radix hexadecimal /testbench/U1/seg7_cs
+add wave -noupdate -label rY -radix hexadecimal /testbench/U1/U3/rY
 add wave -noupdate -label r0 -radix hexadecimal /testbench/U1/U3/r0
-add wave -noupdate -radix hexadecimal /testbench/U1/U3/r4
+add wave -noupdate -label r1 -radix hexadecimal /testbench/U1/U3/r1
+add wave -noupdate -label r2 -radix hexadecimal /testbench/U1/U3/r2
+add wave -noupdate -label r3 -radix hexadecimal /testbench/U1/U3/r3
+add wave -noupdate -label r4 -radix hexadecimal /testbench/U1/U3/r4
 add wave -noupdate -label sp -radix hexadecimal /testbench/U1/U3/r5
-add wave -noupdate /testbench/U1/U3/sp_dec
-add wave -noupdate /testbench/U1/U3/sp_incr
 add wave -noupdate -label lr -radix hexadecimal /testbench/U1/U3/r6
+add wave -noupdate -label pc -radix hexadecimal /testbench/U1/U3/pc
+
+add wave -noupdate -label h0 -radix hexadecimal /testbench/U1/U6/H0
+add wave -noupdate -label h1 -radix hexadecimal /testbench/U1/U6/H1
+add wave -noupdate -label h2 -radix hexadecimal /testbench/U1/U6/H2
+add wave -noupdate -label h3 -radix hexadecimal /testbench/U1/U6/H3
+add wave -noupdate -label h4 -radix hexadecimal /testbench/U1/U6/H4
+add wave -noupdate -label h5 -radix hexadecimal /testbench/U1/U6/H5
+add wave -noupdate -label Data -radix hexadecimal /testbench/U1/U6/Data
+add wave -noupdate -label nData -radix hexadecimal /testbench/U1/U6/nData
+
+add wave -noupdate /testbench/U1/U3/sp_decr
+add wave -noupdate /testbench/U1/U3/sp_incr
+
 add wave -noupdate -label Buswires -radix hexadecimal /testbench/U1/U3/BusWires
-add wave -noupdate -label Sel /testbench/U1/U3/Sel
+add wave -noupdate -label Sel /testbench/U1/U3/Select
 add wave -noupdate -label z /testbench/U1/U3/z
 add wave -noupdate -label c /testbench/U1/U3/c
 add wave -noupdate -label n /testbench/U1/U3/n
@@ -35,13 +52,15 @@ add wave -noupdate -label Fin /testbench/U1/U3/F_in
 add wave -noupdate -label rX_in /testbench/U1/U3/rX_in
 add wave -noupdate -label A -radix hexadecimal /testbench/U1/U3/A
 add wave -noupdate -label G -radix hexadecimal /testbench/U1/U3/G
-add wave -noupdate -label Sum -radix hexadecimal /testbench/U1/U3/Sum
+add wave -noupdate -label ALU_out -radix hexadecimal /testbench/U1/U3/ALU_out
+add wave -noupdate -label ALU_cout -radix hexadecimal /testbench/U1/U3/ALU_cout
 add wave -noupdate -label AddSub /testbench/U1/U3/AddSub
 add wave -noupdate -label ALU_AND /testbench/U1/U3/ALU_and
-add wave -noupdate -label shift_type /testbench/U1/U3/shift_type
-add wave -noupdate -label shift_flag /testbench/U1/U3/shift_flag
-add wave -noupdate /testbench/U1/U3/do_shift
-add wave -noupdate /testbench/U1/U3/Imm_shift
+add wave -noupdate -label shift_type /testbench/U1/U3/Shift_Select
+add wave -noupdate -label shift_flag /testbench/U1/U3/SR_Operand
+add wave -noupdate -label shift_amount /testbench/U1/U3/shift_amount
+add wave -noupdate /testbench/U1/U3/ALU_SR
+
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {630000 ps} 0}
 quietly wave cursor active 1

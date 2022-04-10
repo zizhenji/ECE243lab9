@@ -25,8 +25,8 @@ module testbench ( );
 	end // initial
 
 	initial begin
-		SW <= 10'h0;
-		#40 SW	<= 10'b1000000011;
+		SW <= 10'b0;
+		#40 SW	<= 10'b1000100001;
 	end // initial
 
 	assign KEY[0] = Resetn;

@@ -1,4 +1,5 @@
-START:  mv    sp, =0x1000   // sp = 0x1000 = 4096
+DEPTH 4096
+START:  mv    sp, =0x0100   // sp = 0x1000 = 4096
         mv    r4, =0x0F0F
         push  r4
         bl    SUBR
