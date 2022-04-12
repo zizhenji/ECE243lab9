@@ -10,7 +10,9 @@ DEPTH 4096
 // start of the code. The amount to be shifted in each loop iteration is set by SW[3:0].
 START: mv   sp, =0x1000       // initialize sp to bottom of memory
 
-MAIN:  mv   r0, =0xf0f0
+MAIN:  mv   r0, =0xE243
+       
+       
        bl   REG               // display r0 on HEX3-0
        bl   DELAY
 LOOP:  mv   r1, =SW_ADDRESS
@@ -20,18 +22,22 @@ LOOP:  mv   r1, =SW_ADDRESS
        mv   r2, r1
        lsr  r2, #5            // get shift type (SW bits 6:5)
        and  r1, #0xf
+       lsl  r1,#0x1
 
        cmp  r2, #0b00
        bne  LSR
        lsl  r0, r1
+       
        b    CONT
 LSR:   cmp  r2, #0b01
        bne  ASR
        lsr  r0, r1
+      
        b    CONT
 ASR:   cmp  r2, #0b10
        bne  ROR
        asr  r0, r1
+    
        b    CONT
 ROR:   ror  r0, r1
 
@@ -73,6 +79,19 @@ DIGIT: mv   r1, r0            // the register to be displayed
        add  r3, #4            // for shifting to the next digit
        cmp  r3, #16           // done all digits?
        bne  DIGIT
+       mv   r3, #0
+DIGIT_:
+       
+       mv   r1, r4            // the register to be displayed
+       lsr  r1, r3            // isolate digit
+       and  r1, #0xF          // "    "  "  "
+       add  r1, #SEG7         // point to the codes
+       ld   r1, [r1]          // get the digit code
+       st   r1, [r2]
+       add  r2, #1            // point to next HEX display
+       add  r3, #4            // for shifting to the next digit
+       cmp  r3, #8           // done all digits?
+       bne  DIGIT_
        
        pop  r3
        pop  r2
